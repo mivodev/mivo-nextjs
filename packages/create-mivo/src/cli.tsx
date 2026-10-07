@@ -4,6 +4,7 @@ import { Banner } from './components/Banner.js';
 import { DoctorCheck } from './components/DoctorCheck.js';
 import { StepIndicator } from './components/StepIndicator.js';
 import { ProjectPrompt } from './components/ProjectPrompt.js';
+import { PackageManagerPrompt } from './components/PackageManagerPrompt.js';
 import { AdminPrompt } from './components/AdminPrompt.js';
 import { SecretPrompt } from './components/SecretPrompt.js';
 import { ProgressTasks, type TaskDefinition } from './components/ProgressTasks.js';
@@ -13,15 +14,17 @@ import { generateSecret, writeEnvFile } from './core/env.js';
 import { scaffoldProject } from './core/scaffold.js';
 import { initializeDatabase } from './core/database.js';
 import { seedAdmin, seedSettings } from './core/admin.js';
-import type { MivoConfig, DoctorResult } from './types/index.js';
-import { execSync } from 'node:child_process';
+import { detectDefaultPackageManager } from './core/pm.js';
+import { execAsync } from './core/exec.js';
+import type { MivoConfig, DoctorResult, PackageManager } from './types/index.js';
 import path from 'node:path';
 
-type Step = 'doctor' | 'project' | 'admin' | 'secret' | 'execute' | 'done';
+type Step = 'doctor' | 'project' | 'pm' | 'admin' | 'secret' | 'execute' | 'done';
 
 const STEP_LABELS = [
   'Environment Check',
   'Project Setup',
+  'Package Manager',
   'Admin Account',
   'Auth Secret',
   'Installation',
@@ -40,6 +43,9 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
 
   const [step, setStep] = useState<Step>('doctor');
   const [projectDir, setProjectDir] = useState(initialConfig.projectDir || 'mivo-app');
+  const [packageManager, setPackageManager] = useState<PackageManager>(
+    initialConfig.packageManager || detectDefaultPackageManager(),
+  );
   const [adminUser, setAdminUser] = useState(initialConfig.adminUser || '');
   const [adminEmail, setAdminEmail] = useState(initialConfig.adminEmail || '');
   const [adminPassword, setAdminPassword] = useState(initialConfig.adminPassword || '');
@@ -55,8 +61,17 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
       // Auto-advance if doctor passes
       setTimeout(() => {
         if (initialConfig.projectDir) {
-          // Directory already provided via CLI flag — skip prompt
-          setStep('admin');
+          if (!initialConfig.packageManager) {
+            setStep('pm');
+          } else if (
+            !initialConfig.adminUser ||
+            !initialConfig.adminEmail ||
+            !initialConfig.adminPassword
+          ) {
+            setStep('admin');
+          } else {
+            setStep('secret');
+          }
         } else {
           setStep('project');
         }
@@ -69,15 +84,28 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
   const currentStepNumber =
     step === 'doctor' ? 1
       : step === 'project' ? 2
-        : step === 'admin' ? 3
-          : step === 'secret' ? 4
-            : 5;
+        : step === 'pm' ? 3
+          : step === 'admin' ? 4
+            : step === 'secret' ? 5
+              : 6;
 
   // Handlers
   const handleProjectSubmit = useCallback((dir: string) => {
     setProjectDir(dir);
+    if (initialConfig.packageManager) {
+      if (initialConfig.adminUser && initialConfig.adminEmail && initialConfig.adminPassword) {
+        setStep('secret');
+      } else {
+        setStep('admin');
+      }
+    } else {
+      setStep('pm');
+    }
+  }, [initialConfig]);
+
+  const handlePmSubmit = useCallback((selectedPm: PackageManager) => {
+    setPackageManager(selectedPm);
     if (initialConfig.adminUser && initialConfig.adminEmail && initialConfig.adminPassword) {
-      // All admin fields provided via flags — skip admin prompt
       setStep('secret');
     } else {
       setStep('admin');
@@ -104,6 +132,13 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
     setTimeout(() => exit(), 500);
   }, [exit]);
 
+  const handleTaskError = useCallback(
+    (_err: string) => {
+      setTimeout(() => exit(), 2500);
+    },
+    [exit],
+  );
+
   // Build tasks for the execution step
   const resolvedDir = path.resolve(projectDir);
   const finalSecret = secret || generateSecret();
@@ -118,7 +153,7 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
           await new Promise((r) => setTimeout(r, 400));
           return;
         }
-        scaffoldProject(projectDir);
+        await scaffoldProject(projectDir);
       },
     },
     {
@@ -138,15 +173,10 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
           await new Promise((r) => setTimeout(r, 500));
           return;
         }
-        const agent = process.env.npm_config_user_agent ?? '';
-        const pm = agent.startsWith('pnpm')
-          ? 'pnpm'
-          : agent.startsWith('yarn')
-            ? 'yarn'
-            : agent.startsWith('bun')
-              ? 'bun'
-              : 'npm';
-        execSync(`${pm} install`, { cwd: resolvedDir, stdio: 'pipe' });
+        await execAsync(`${packageManager} install`, {
+          cwd: resolvedDir,
+          env: { ...process.env, CI: 'true' },
+        });
       },
     },
     {
@@ -178,11 +208,10 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
         }
         seedSettings(projectDir, finalSecret);
         try {
-          execSync('git init', { cwd: resolvedDir, stdio: 'pipe' });
-          execSync('git add -A', { cwd: resolvedDir, stdio: 'pipe' });
-          execSync('git commit -m "Initial commit from create-mivo"', {
+          await execAsync('git init', { cwd: resolvedDir });
+          await execAsync('git add -A', { cwd: resolvedDir });
+          await execAsync('git commit -m "Initial commit from create-mivo"', {
             cwd: resolvedDir,
-            stdio: 'pipe',
           });
         } catch {
           // Git non-fatal
@@ -207,6 +236,13 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
         />
       )}
 
+      {step === 'pm' && (
+        <PackageManagerPrompt
+          initial={packageManager}
+          onSubmit={handlePmSubmit}
+        />
+      )}
+
       {step === 'admin' && (
         <AdminPrompt
           initialUser={initialConfig.adminUser}
@@ -223,11 +259,19 @@ export function App({ initialConfig }: AppProps): React.ReactElement {
       )}
 
       {step === 'execute' && (
-        <ProgressTasks tasks={tasks} onComplete={handleComplete} />
+        <ProgressTasks
+          tasks={tasks}
+          onComplete={handleComplete}
+          onError={handleTaskError}
+        />
       )}
 
       {step === 'done' && (
-        <Summary projectDir={projectDir} adminEmail={adminEmail} />
+        <Summary
+          projectDir={projectDir}
+          adminEmail={adminEmail}
+          packageManager={packageManager}
+        />
       )}
     </Box>
   );

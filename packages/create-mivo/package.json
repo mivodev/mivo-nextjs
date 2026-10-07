@@ -1,6 +1,6 @@
 {
   "name": "create-mivo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scaffold and initialize high-performance MIVO MikroTik management platforms",
   "keywords": [
     "mivo",

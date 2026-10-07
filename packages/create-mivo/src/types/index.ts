@@ -2,10 +2,16 @@
  * Shared type definitions for the create-mivo CLI.
  */
 
+/** Supported package managers */
+export type PackageManager = 'pnpm' | 'npm' | 'yarn' | 'bun';
+
 /** User-provided configuration collected during interactive prompts. */
 export interface MivoConfig {
   /** Target project directory (relative or absolute path). */
   projectDir: string;
+
+  /** Package manager to use for installing dependencies. */
+  packageManager: PackageManager;
 
   /** Superadmin display name / username. */
   adminUser: string;

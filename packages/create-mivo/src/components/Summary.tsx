@@ -2,10 +2,13 @@ import React from 'react';
 import { Text, Box } from 'ink';
 import figures from 'figures';
 import path from 'node:path';
+import type { PackageManager } from '../types/index.js';
+import { getRunCommand } from '../core/pm.js';
 
 interface SummaryProps {
   projectDir: string;
   adminEmail: string;
+  packageManager?: PackageManager;
 }
 
 /**
@@ -14,6 +17,7 @@ interface SummaryProps {
 export function Summary({
   projectDir,
   adminEmail,
+  packageManager = 'pnpm',
 }: SummaryProps): React.ReactElement {
   const dir = path.basename(path.resolve(projectDir));
 
@@ -28,8 +32,8 @@ export function Summary({
       </Text>
       <Box marginLeft={2} flexDirection="column">
         <Text color="cyan">1. cd {dir}</Text>
-        <Text color="cyan">2. pnpm install</Text>
-        <Text color="cyan">3. pnpm dev</Text>
+        <Text color="cyan">2. {packageManager} install</Text>
+        <Text color="cyan">3. {getRunCommand(packageManager, 'dev')}</Text>
       </Box>
       <Box height={1} />
       <Text dimColor>

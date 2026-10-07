@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execAsync } from './exec.js';
 
 /**
  * Scaffold the MIVO project by cloning from the Git repository.
@@ -10,7 +10,7 @@ import { execSync } from 'node:child_process';
  *  2. Remove .git directory so the user starts fresh.
  *  3. Remove packages/ directory (this CLI package itself).
  */
-export function scaffoldProject(projectDir: string): void {
+export async function scaffoldProject(projectDir: string): Promise<void> {
   const resolved = path.resolve(projectDir);
 
   if (fs.existsSync(resolved)) {
@@ -22,10 +22,10 @@ export function scaffoldProject(projectDir: string): void {
     }
   }
 
-  // Shallow clone the repository
+  // Shallow clone the repository asynchronously
   const repoUrl = 'https://github.com/mivodev/mivo-nextjs.git';
-  execSync(`git clone --depth 1 ${repoUrl} "${resolved}"`, {
-    stdio: 'pipe',
+  await execAsync(`git clone --depth 1 ${repoUrl} "${resolved}"`, {
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
 
   // Clean up git history and CI artifacts — user should init fresh

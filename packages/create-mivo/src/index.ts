@@ -9,12 +9,13 @@ import { generateSecret, writeEnvFile } from './core/env.js';
 import { scaffoldProject } from './core/scaffold.js';
 import { initializeDatabase } from './core/database.js';
 import { seedAdmin, seedSettings } from './core/admin.js';
-import { execSync } from 'node:child_process';
+import { execAsync } from './core/exec.js';
 import path from 'node:path';
-import type { MivoConfig } from './types/index.js';
+import type { MivoConfig, PackageManager } from './types/index.js';
+import { detectDefaultPackageManager, getRunCommand } from './core/pm.js';
 
 // ─── Package metadata ───────────────────────────────────────────
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 const DEFAULT_DIR = 'mivo-app';
 
 // ─── ASCII Banner (for non-interactive mode) ────────────────────
@@ -28,6 +29,7 @@ const BANNER = `
 `;
 
 const mivoGradient = gradientString(['#6366f1', '#8b5cf6', '#a855f7']);
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 // ─── Non-Interactive (Headless) Executor ────────────────────────
 async function runHeadless(config: MivoConfig): Promise<void> {
@@ -61,33 +63,72 @@ async function runHeadless(config: MivoConfig): Promise<void> {
     process.exit(0);
   }
 
-  // Task runner (simple sequential with console output)
+  // Task runner (asynchronous sequential with live animated spinner)
   const tasks = [
-    { label: 'Scaffolding MIVO application core', run: () => scaffoldProject(config.projectDir) },
-    { label: 'Generating cryptographic secret & .env', run: () => writeEnvFile(config.projectDir, config.secret) },
     {
-      label: 'Installing dependencies',
-      run: () => {
-        const agent = process.env.npm_config_user_agent ?? '';
-        const pm = agent.startsWith('pnpm') ? 'pnpm' : agent.startsWith('yarn') ? 'yarn' : agent.startsWith('bun') ? 'bun' : 'npm';
-        execSync(`${pm} install`, { cwd: path.resolve(config.projectDir), stdio: 'pipe' });
+      label: 'Scaffolding MIVO application core',
+      run: async () => { await scaffoldProject(config.projectDir); },
+    },
+    {
+      label: 'Generating cryptographic secret & .env',
+      run: () => writeEnvFile(config.projectDir, config.secret),
+    },
+    {
+      label: `Installing dependencies (${config.packageManager})`,
+      run: async () => {
+        await execAsync(`${config.packageManager} install`, {
+          cwd: path.resolve(config.projectDir),
+          env: { ...process.env, CI: 'true' },
+        });
       },
     },
-    { label: 'Provisioning SQLite database & running migrations', run: () => initializeDatabase(config.projectDir) },
+    {
+      label: 'Provisioning SQLite database & running migrations',
+      run: () => initializeDatabase(config.projectDir),
+    },
     {
       label: 'Seeding superadmin account',
-      run: async () => { await seedAdmin(config.projectDir, config.adminUser, config.adminEmail, config.adminPassword); },
+      run: async () => {
+        await seedAdmin(config.projectDir, config.adminUser, config.adminEmail, config.adminPassword);
+      },
     },
-    { label: 'Writing system defaults', run: () => seedSettings(config.projectDir, config.secret) },
+    {
+      label: 'Writing system defaults',
+      run: () => seedSettings(config.projectDir, config.secret),
+    },
   ];
 
+  const isTTY = Boolean(process.stdout.isTTY);
+
   for (const task of tasks) {
-    process.stdout.write(chalk.dim(`  ⠋ ${task.label}...`));
+    let frameIdx = 0;
+    let timer: NodeJS.Timeout | undefined;
+
+    if (isTTY) {
+      process.stdout.write(chalk.dim(`  ${SPINNER_FRAMES[0]} ${task.label}...`));
+      timer = setInterval(() => {
+        frameIdx = (frameIdx + 1) % SPINNER_FRAMES.length;
+        process.stdout.write(`\r  ${chalk.cyan(SPINNER_FRAMES[frameIdx])} ${chalk.dim(`${task.label}...`)}`);
+      }, 80);
+    } else {
+      console.log(chalk.dim(`  ⠋ ${task.label}...`));
+    }
+
     try {
       await task.run();
-      process.stdout.write(`\r  ${chalk.green('✔')} ${task.label}\n`);
+      if (timer) clearInterval(timer);
+      if (isTTY) {
+        process.stdout.write(`\r  ${chalk.green('✔')} ${task.label}                            \n`);
+      } else {
+        console.log(`  ${chalk.green('✔')} ${task.label}`);
+      }
     } catch (err) {
-      process.stdout.write(`\r  ${chalk.red('✘')} ${task.label}\n`);
+      if (timer) clearInterval(timer);
+      if (isTTY) {
+        process.stdout.write(`\r  ${chalk.red('✘')} ${task.label}                            \n`);
+      } else {
+        console.log(`  ${chalk.red('✘')} ${task.label}`);
+      }
       const message = err instanceof Error ? err.message : String(err);
       console.error(chalk.red(`    └─ ${message}`));
       process.exit(1);
@@ -97,9 +138,9 @@ async function runHeadless(config: MivoConfig): Promise<void> {
   // Initialize git
   try {
     const resolvedDir = path.resolve(config.projectDir);
-    execSync('git init', { cwd: resolvedDir, stdio: 'pipe' });
-    execSync('git add -A', { cwd: resolvedDir, stdio: 'pipe' });
-    execSync('git commit -m "Initial commit from create-mivo"', { cwd: resolvedDir, stdio: 'pipe' });
+    await execAsync('git init', { cwd: resolvedDir });
+    await execAsync('git add -A', { cwd: resolvedDir });
+    await execAsync('git commit -m "Initial commit from create-mivo"', { cwd: resolvedDir });
   } catch { /* Git not available — non-fatal */ }
 
   const dir = path.basename(path.resolve(config.projectDir));
@@ -108,12 +149,28 @@ async function runHeadless(config: MivoConfig): Promise<void> {
   console.log();
   console.log(chalk.white('  Next steps:'));
   console.log(chalk.cyan(`    1. cd ${dir}`));
-  console.log(chalk.cyan('    2. pnpm install'));
-  console.log(chalk.cyan('    3. pnpm dev'));
+  console.log(chalk.cyan(`    2. ${config.packageManager} install`));
+  console.log(chalk.cyan(`    3. ${getRunCommand(config.packageManager, 'dev')}`));
   console.log();
   console.log(chalk.dim(`  Open ${chalk.underline('http://localhost:3000/login')} in your browser.`));
   console.log(chalk.dim(`  Administrator: ${config.adminEmail}`));
   console.log();
+}
+
+function resolvePmOption(options: Record<string, unknown>): PackageManager | undefined {
+  if (typeof options.pm === 'string') {
+    const val = options.pm.toLowerCase();
+    if (['pnpm', 'npm', 'yarn', 'bun'].includes(val)) {
+      return val as PackageManager;
+    }
+    console.error(chalk.red(`Invalid package manager "${options.pm}". Must be pnpm, npm, yarn, or bun.`));
+    process.exit(1);
+  }
+  if (options.usePnpm) return 'pnpm';
+  if (options.useBun) return 'bun';
+  if (options.useYarn) return 'yarn';
+  if (options.useNpm) return 'npm';
+  return undefined;
 }
 
 // ─── Main CLI ───────────────────────────────────────────────────
@@ -128,11 +185,17 @@ program
   .option('--admin-email <email>', 'Superadmin email address')
   .option('--admin-password <pass>', 'Superadmin password (min 8 chars)')
   .option('--secret <hex>', 'Custom 32-byte auth secret key')
+  .option('--pm <manager>', 'Package manager to use (pnpm, npm, yarn, bun)')
+  .option('--use-pnpm', 'Use pnpm as package manager')
+  .option('--use-npm', 'Use npm as package manager')
+  .option('--use-yarn', 'Use yarn as package manager')
+  .option('--use-bun', 'Use bun as package manager')
   .option('-y, --yes', 'Skip all prompts and accept defaults', false)
   .option('--dry-run', 'Simulate without writing files', false)
   .action(async (dir: string, options: Record<string, unknown>) => {
     const isNonInteractive = options.yes as boolean;
     const isDryRun = options.dryRun as boolean;
+    const pmChoice = resolvePmOption(options);
 
     if (isNonInteractive) {
       // ── Headless mode (CI/CD, Docker, scripting) ──
@@ -145,6 +208,7 @@ program
 
       const config: MivoConfig = {
         projectDir: dir,
+        packageManager: pmChoice || detectDefaultPackageManager(),
         adminUser: (options.adminUser as string) || 'admin',
         adminEmail: (options.adminEmail as string) || 'admin@mivo.local',
         adminPassword: options.adminPassword as string,
@@ -158,6 +222,7 @@ program
       // ── Interactive mode (Ink React terminal UI) ──
       const initialConfig: Partial<MivoConfig> = {
         projectDir: dir !== DEFAULT_DIR ? dir : undefined,
+        packageManager: pmChoice,
         adminUser: options.adminUser as string | undefined,
         adminEmail: options.adminEmail as string | undefined,
         adminPassword: options.adminPassword as string | undefined,

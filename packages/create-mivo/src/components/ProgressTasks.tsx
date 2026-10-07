@@ -11,6 +11,7 @@ export interface TaskDefinition {
 interface ProgressTasksProps {
   tasks: TaskDefinition[];
   onComplete: () => void;
+  onError?: (error: string) => void;
 }
 
 type TaskStatus = 'pending' | 'running' | 'done' | 'failed';
@@ -22,6 +23,7 @@ type TaskStatus = 'pending' | 'running' | 'done' | 'failed';
 export function ProgressTasks({
   tasks,
   onComplete,
+  onError,
 }: ProgressTasksProps): React.ReactElement {
   const [statuses, setStatuses] = useState<TaskStatus[]>(
     tasks.map(() => 'pending'),
@@ -56,6 +58,7 @@ export function ProgressTasks({
             next[i] = 'failed';
             return next;
           });
+          onError?.(msg);
           return; // Stop on failure
         }
       }
@@ -63,7 +66,7 @@ export function ProgressTasks({
     };
 
     runAll();
-  }, [started, tasks, onComplete]);
+  }, [started, tasks, onComplete, onError]);
 
   return (
     <Box flexDirection="column" marginBottom={1}>
