@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx lib/db/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "publish-packages": "changeset publish"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -42,6 +45,7 @@
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.21",
+    "@changesets/cli": "^3.0.3",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
