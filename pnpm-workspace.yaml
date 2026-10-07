@@ -6,3 +6,4 @@ allowBuilds:
   msw: false
   better-sqlite3: true
   esbuild: true
+  '@prisma/client': true

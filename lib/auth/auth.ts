@@ -12,6 +12,8 @@ import * as schema from '@/lib/db/schema';
  * • Admin plugin provides RBAC with `superadmin` and `user` roles.
  */
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+  secret: process.env.BETTER_AUTH_SECRET || 'mivo_dev_secret_key_change_in_production_32bytes',
   database: drizzleAdapter(db, {
     provider: 'sqlite',
     schema,

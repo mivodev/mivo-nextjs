@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 const geistHeading = Geist({subsets:['latin'],variable:'--font-heading'});
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-foreground antialiased">
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
+          <Toaster position="top-right" />
         </ThemeProvider>
       </body>
     </html>
