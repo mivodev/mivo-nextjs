@@ -22,8 +22,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/install', request.url));
   }
 
-  // If installed, block /install
+  // If installed, block GET /install (redirect to /login)
   if (pathname.startsWith('/install')) {
+    if (request.method !== 'GET') {
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 

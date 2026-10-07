@@ -1,13 +1,12 @@
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { db } from './client';
+import path from 'path';
 
 /**
  * Run pending database migrations programmatically.
- *
- * Called from the `/install` server action so the end‑user never
- * needs to touch a terminal — they just click "Install" in the
- * browser and the schema is provisioned automatically.
+ * Uses path.resolve to guarantee absolute path resolution in all runtimes.
  */
 export async function runMigrations(): Promise<void> {
-  await migrate(db, { migrationsFolder: './drizzle' });
+  const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
+  await migrate(db, { migrationsFolder });
 }

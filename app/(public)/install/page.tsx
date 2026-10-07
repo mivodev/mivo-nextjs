@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   CheckCircle2,
@@ -19,7 +20,8 @@ import {
   HardDrive,
 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -52,6 +54,24 @@ export default function InstallPage() {
   const [isInstalling, setIsInstalling] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
+  const [countdown, setCountdown] = React.useState(3)
+
+  React.useEffect(() => {
+    if (!isSuccess) return
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          window.location.href = "/login"
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [isSuccess])
 
   React.useEffect(() => {
     setSecret(generateRandomSecret())
@@ -268,19 +288,35 @@ export default function InstallPage() {
               </CardFooter>
             </form>
           ) : (
-            <div className="p-6 sm:p-8 space-y-5">
+            <div className="p-6 sm:p-8 space-y-6">
               <Alert className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                 <ShieldCheck className="size-5" />
                 <AlertTitle className="font-bold text-sm">Installation Complete!</AlertTitle>
-                <AlertDescription className="text-xs mt-1">
-                  {siteConfig.name} has been successfully installed. You can now sign in using your admin credentials.
+                <AlertDescription className="text-xs mt-1 space-y-1.5">
+                  <p>
+                    {siteConfig.name} has been successfully installed. You can now sign in using your admin credentials.
+                  </p>
+                  <p className="font-semibold text-emerald-600 dark:text-emerald-300">
+                    Redirecting to login in {countdown} second{countdown !== 1 ? "s" : ""}...
+                  </p>
                 </AlertDescription>
               </Alert>
 
-              <Button className="w-full gap-2 shadow-xs" onClick={() => router.push("/login")}>
-                <span>Go to Login</span>
-                <UserCheck className="size-4" />
-              </Button>
+              <div className="space-y-3">
+                <Link
+                  href="/login"
+                  className={cn(
+                    buttonVariants({ size: "lg" }),
+                    "w-full h-11 text-sm font-semibold gap-2 shadow-xs cursor-pointer flex items-center justify-center"
+                  )}
+                >
+                  <span>Go to Login Now</span>
+                  <UserCheck className="size-4" />
+                </Link>
+                <p className="text-center text-[11px] text-muted-foreground">
+                  If you are not redirected automatically, click the button above.
+                </p>
+              </div>
             </div>
           )}
         </Card>
