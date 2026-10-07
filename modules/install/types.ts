@@ -21,3 +21,10 @@ export interface SystemStatus {
   hasDatabase: boolean;
   userCount: number;
 }
+
+export interface PreflightCheck {
+  dbWritable: boolean;
+  dbExists: boolean;
+  envWritable: boolean;
+  isInstalled: boolean;
+}

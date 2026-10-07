@@ -15,6 +15,8 @@ import {
   RefreshCw,
   Copy,
   Lock,
+  Clock,
+  HardDrive,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -26,7 +28,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Logo } from "@/components/logo"
 import { toast } from "sonner"
 import { siteConfig } from "@/lib/site-config"
-import { runSystemInstall } from "@/modules/install/actions"
+import { runSystemInstall, getPreflightCheck } from "@/modules/install/actions"
+import type { PreflightCheck } from "@/modules/install/types"
 
 function generateRandomSecret(): string {
   if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
@@ -45,12 +48,18 @@ export default function InstallPage() {
   const [showPassword, setShowPassword] = React.useState(false)
   const [secret, setSecret] = React.useState("")
   const [showSecret, setShowSecret] = React.useState(false)
+  const [preflight, setPreflight] = React.useState<PreflightCheck | null>(null)
   const [isInstalling, setIsInstalling] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null)
   const [isSuccess, setIsSuccess] = React.useState(false)
 
   React.useEffect(() => {
     setSecret(generateRandomSecret())
+    getPreflightCheck().then((res) => {
+      if (res.success) {
+        setPreflight(res.data)
+      }
+    })
   }, [])
 
   const handleRegenerateSecret = () => {
@@ -128,18 +137,24 @@ export default function InstallPage() {
                 <div className="grid grid-cols-2 gap-3 rounded-xl border border-border/70 bg-muted/30 p-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-medium text-foreground">
-                      <Database className="size-3.5 text-primary" /> SQLite DB
+                      <HardDrive className="size-3.5 text-primary" /> Storage
                     </span>
-                    <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30 py-0">
-                      <CheckCircle2 className="size-3 mr-0.5" /> Ready
-                    </Badge>
+                    {preflight?.dbWritable ? (
+                      <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30 py-0">
+                        <CheckCircle2 className="size-3 mr-0.5" /> Writable
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 py-0">
+                        <Clock className="size-3 mr-0.5" /> Checking...
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-medium text-foreground">
-                      <Key className="size-3.5 text-primary" /> Auth Secret
+                      <Database className="size-3.5 text-primary" /> SQLite Schema
                     </span>
-                    <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30 py-0">
-                      <CheckCircle2 className="size-3 mr-0.5" /> Ready
+                    <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 py-0">
+                      <Clock className="size-3 mr-0.5" /> Pending Init
                     </Badge>
                   </div>
                 </div>

@@ -37,6 +37,62 @@ export async function getSystemStatus(): Promise<ActionResult<SystemStatus>> {
 }
 
 /**
+ * Perform real filesystem & environment preflight checks
+ * to verify write permissions before running installation.
+ */
+export async function getPreflightCheck(): Promise<
+  ActionResult<import("./types").PreflightCheck>
+> {
+  try {
+    const fs = await import("fs");
+    const path = await import("path");
+    const dbPath = path.resolve(
+      process.cwd(),
+      process.env.DATABASE_URL || "mivo.db",
+    );
+    const dbDir = path.dirname(dbPath);
+    const envPath = path.resolve(process.cwd(), ".env");
+
+    let dbWritable = false;
+    try {
+      fs.accessSync(dbDir, fs.constants.W_OK);
+      dbWritable = true;
+    } catch {
+      dbWritable = false;
+    }
+
+    const dbExists = fs.existsSync(dbPath);
+
+    let envWritable = false;
+    try {
+      if (fs.existsSync(envPath)) {
+        fs.accessSync(envPath, fs.constants.W_OK);
+        envWritable = true;
+      } else {
+        fs.accessSync(process.cwd(), fs.constants.W_OK);
+        envWritable = true;
+      }
+    } catch {
+      envWritable = false;
+    }
+
+    const isInstalled = await isSystemInstalled();
+
+    return {
+      success: true,
+      data: {
+        dbWritable,
+        dbExists,
+        envWritable,
+        isInstalled,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
  * Execute system installation:
  * 1. Provision database tables (run Drizzle migrations)
  * 2. Create the first superadministrator account via Better Auth
