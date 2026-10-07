@@ -1,0 +1,3 @@
+[submodule "mivo-php"]
+	path = mivo-php
+	url = https://github.com/mivodev/mivo.git
