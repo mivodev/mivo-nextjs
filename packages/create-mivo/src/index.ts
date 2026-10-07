@@ -15,7 +15,7 @@ import type { MivoConfig, PackageManager } from './types/index.js';
 import { detectDefaultPackageManager, getRunCommand } from './core/pm.js';
 
 // ─── Package metadata ───────────────────────────────────────────
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 const DEFAULT_DIR = 'mivo-app';
 
 // ─── ASCII Banner (for non-interactive mode) ────────────────────

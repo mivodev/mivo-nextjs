@@ -1,5 +1,17 @@
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
+
+function getDatabaseDriver(projectDir: string): typeof import('better-sqlite3') {
+  const resolved = path.resolve(projectDir);
+  try {
+    const projectRequire = createRequire(path.join(resolved, 'package.json'));
+    return projectRequire('better-sqlite3');
+  } catch {
+    const selfRequire = createRequire(import.meta.url);
+    return selfRequire('better-sqlite3');
+  }
+}
 
 /**
  * Seed the superadmin account directly into the SQLite database.
@@ -18,16 +30,7 @@ export async function seedAdmin(
   const resolved = path.resolve(projectDir);
   const dbPath = path.resolve(resolved, dbUrl);
 
-  let Database: typeof import('better-sqlite3');
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Database = require('better-sqlite3');
-  } catch {
-    const localPath = path.resolve(resolved, 'node_modules', 'better-sqlite3');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Database = require(localPath);
-  }
-
+  const Database = getDatabaseDriver(projectDir);
   const db = new (Database as any)(dbPath);
 
   const now = Date.now();
@@ -74,16 +77,7 @@ export function seedSettings(
   const resolved = path.resolve(projectDir);
   const dbPath = path.resolve(resolved, dbUrl);
 
-  let Database: typeof import('better-sqlite3');
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Database = require('better-sqlite3');
-  } catch {
-    const localPath = path.resolve(resolved, 'node_modules', 'better-sqlite3');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Database = require(localPath);
-  }
-
+  const Database = getDatabaseDriver(projectDir);
   const db = new (Database as any)(dbPath);
   const now = new Date().toISOString();
 

@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 
 /**
  * Initialize the SQLite database and run Drizzle migrations
@@ -13,16 +14,14 @@ export function initializeDatabase(projectDir: string, dbUrl = 'mivo.db'): void 
   const dbPath = path.resolve(resolved, dbUrl);
   const migrationsDir = path.resolve(resolved, 'drizzle');
 
-  // Dynamically import better-sqlite3 at the resolved project path
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // Load better-sqlite3 using createRequire anchored to target project node_modules
   let Database: typeof import('better-sqlite3');
   try {
-    Database = require('better-sqlite3');
+    const projectRequire = createRequire(path.join(resolved, 'package.json'));
+    Database = projectRequire('better-sqlite3');
   } catch {
-    // If not available globally, try the project's node_modules
-    const localPath = path.resolve(resolved, 'node_modules', 'better-sqlite3');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    Database = require(localPath);
+    const selfRequire = createRequire(import.meta.url);
+    Database = selfRequire('better-sqlite3');
   }
 
   // Create / open the database
