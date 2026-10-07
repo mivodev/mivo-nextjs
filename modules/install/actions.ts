@@ -88,12 +88,40 @@ export async function runSystemInstall(
       .set({ role: "superadmin" })
       .where(eq(user.email, input.email.trim().toLowerCase()));
 
-    // 6. Seed default system settings
+    // 6. Persist secret key natively and to database
+    const secretKey =
+      input.secret?.trim() ||
+      process.env.BETTER_AUTH_SECRET ||
+      "mivo_official_secret_key_32bytes";
+    process.env.BETTER_AUTH_SECRET = secretKey;
+
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const envPath = path.resolve(process.cwd(), ".env");
+      if (fs.existsSync(envPath)) {
+        let content = fs.readFileSync(envPath, "utf8");
+        if (content.includes("BETTER_AUTH_SECRET=")) {
+          content = content.replace(
+            /BETTER_AUTH_SECRET=.*/,
+            `BETTER_AUTH_SECRET=${secretKey}`,
+          );
+        } else {
+          content += `\nBETTER_AUTH_SECRET=${secretKey}\n`;
+        }
+        fs.writeFileSync(envPath, content, "utf8");
+      }
+    } catch {
+      // In read-only filesystems, continue gracefully
+    }
+
+    // 7. Seed default system settings
     const now = new Date().toISOString();
     const defaultSettings = [
       { key: "system_installed", value: "true" },
       { key: "site_name", value: input.siteName?.trim() || "MIVO" },
       { key: "currency", value: "Rp" },
+      { key: "auth_secret_key", value: secretKey },
       { key: "installed_at", value: now },
     ];
 

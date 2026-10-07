@@ -6,6 +6,7 @@ export interface InstallInput {
   username: string;
   email: string;
   password: string;
+  secret?: string;
   siteName?: string;
 }
 

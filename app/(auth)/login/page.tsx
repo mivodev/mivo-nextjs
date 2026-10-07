@@ -86,14 +86,16 @@ export default function LoginPage() {
         <p className="text-xs text-muted-foreground">Sign in to your {siteConfig.name} dashboard</p>
       </div>
 
-      <Card className="shadow-md">
-        <form onSubmit={handleLogin}>
-          <CardHeader className="space-y-1">
+      <Card className="shadow-lg border-border/70 overflow-hidden pt-0 pb-0 gap-0">
+        <form onSubmit={handleLogin} className="flex flex-col">
+          <CardHeader className="px-6 pt-6 pb-4 space-y-1.5 border-b border-border/40">
             <CardTitle className="text-xl">Sign In</CardTitle>
-            <CardDescription>Enter your username or email and password below.</CardDescription>
+            <CardDescription className="text-xs text-muted-foreground">
+              Enter your username or email and password below.
+            </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
+          <CardContent className="p-6 space-y-4">
             {errorMessage && (
               <Alert variant="destructive">
                 <AlertCircle className="size-4" />
@@ -140,8 +142,8 @@ export default function LoginPage() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-col gap-3">
-            <Button type="submit" className="w-full gap-2" disabled={isLoading || !password}>
+          <CardFooter className="border-t border-border/50 bg-muted/20 px-6 py-4 flex flex-col gap-3 rounded-b-xl">
+            <Button type="submit" size="lg" className="w-full h-11 text-sm font-semibold gap-2 shadow-xs" disabled={isLoading || !password}>
               <LogIn className="size-4" />
               <span>{isLoading ? "Signing in..." : "Sign In"}</span>
             </Button>
